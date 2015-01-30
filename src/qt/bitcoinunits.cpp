@@ -1,3 +1,7 @@
+// Copyright (c) 2011-2013 The Bitcoin developers
+// Distributed under the MIT/X11 software license, see the accompanying
+// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+
 #include "bitcoinunits.h"
 
 #include <QStringList>
@@ -34,9 +38,9 @@ QString BitcoinUnits::name(int unit)
 {
     switch(unit)
     {
-    case BTC: return QString("TTY");
-    case mBTC: return QString("mTTY");
-    case uBTC: return QString::fromUtf8("μTTY");
+    case BTC: return QString("UIS");
+    case mBTC: return QString("mUIS");
+    case uBTC: return QString::fromUtf8("μUIS");
     default: return QString("???");
     }
 }
@@ -45,9 +49,9 @@ QString BitcoinUnits::description(int unit)
 {
     switch(unit)
     {
-    case BTC: return QString("Trinitys");
-    case mBTC: return QString("Milli-Trinitys (1 / 1,000)");
-    case uBTC: return QString("Micro-Trinitys (1 / 1,000,000)");
+    case BTC: return QString("Unitus");
+    case mBTC: return QString("Milli-Unitus (1 / 1,000)");
+    case uBTC: return QString("Micro-Unitus (1 / 1,000,000)");
     default: return QString("???");
     }
 }

@@ -2,15 +2,17 @@
 // Copyright (c) 2009-2013 The Bitcoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
+
 #ifndef BITCOIN_KEY_H
 #define BITCOIN_KEY_H
 
-#include <vector>
-
 #include "allocators.h"
+#include "hash.h"
 #include "serialize.h"
 #include "uint256.h"
-#include "hash.h"
+
+#include <stdexcept>
+#include <vector>
 
 // secp256k1:
 // const unsigned int PRIVATE_KEY_SIZE = 279;
@@ -90,6 +92,8 @@ public:
     const unsigned char *end() const { return vch+size(); }
     const unsigned char &operator[](unsigned int pos) const { return vch[pos]; }
 
+    std::vector<uint8_t> Raw() { return std::vector<uint8_t>(begin(), end()); }
+	
     // Comparator implementation.
     friend bool operator==(const CPubKey &a, const CPubKey &b) {
         return a.vch[0] == b.vch[0] &&
@@ -135,7 +139,9 @@ public:
         return Hash(vch, vch+size());
     }
 
-    // just check syntactic correctness.
+    // Check syntactic correctness.
+    //
+    // Note that this is consensus critical as CheckSig() calls it!
     bool IsValid() const {
         return size() > 0;
     }
@@ -161,12 +167,17 @@ public:
 
     // Turn this public key into an uncompressed public key.
     bool Decompress();
+
+    // Derive BIP32 child pubkey.
+    bool Derive(CPubKey& pubkeyChild, unsigned char ccChild[32], unsigned int nChild, const unsigned char cc[32]) const;
 };
 
 
 // secure_allocator is defined in allocators.h
 // CPrivKey is a serialized private key, with all parameters included (279 bytes)
 typedef std::vector<unsigned char, secure_allocator<unsigned char> > CPrivKey;
+// CSecret is a serialization of just the secret parameter (32 bytes)
+typedef std::vector<unsigned char, secure_allocator<unsigned char> > CSecret;
 
 /** An encapsulated private key. */
 class CKey {
@@ -199,6 +210,11 @@ public:
     // Destructor (again necessary because of memlocking).
     ~CKey() {
         UnlockObject(vch);
+    }
+
+    friend bool operator==(const CKey &a, const CKey &b) {
+        return a.fCompressed == b.fCompressed && a.size() == b.size() &&
+               memcmp(&a.vch[0], &b.vch[0], a.size()) == 0;
     }
 
     // Initialize using begin and end iterators to byte data.
@@ -251,6 +267,51 @@ public:
     //                  0x1D = second key with even y, 0x1E = second key with odd y,
     //                  add 0x04 for compressed keys.
     bool SignCompact(const uint256 &hash, std::vector<unsigned char>& vchSig) const;
+
+    // Derive BIP32 child key.
+    bool Derive(CKey& keyChild, unsigned char ccChild[32], unsigned int nChild, const unsigned char cc[32]) const;
+
+    // Load private key and check that public key matches.
+    bool Load(CPrivKey &privkey, CPubKey &vchPubKey, bool fSkipCheck);
 };
+
+struct CExtPubKey {
+    unsigned char nDepth;
+    unsigned char vchFingerprint[4];
+    unsigned int nChild;
+    unsigned char vchChainCode[32];
+    CPubKey pubkey;
+
+    friend bool operator==(const CExtPubKey &a, const CExtPubKey &b) {
+        return a.nDepth == b.nDepth && memcmp(&a.vchFingerprint[0], &b.vchFingerprint[0], 4) == 0 && a.nChild == b.nChild &&
+               memcmp(&a.vchChainCode[0], &b.vchChainCode[0], 32) == 0 && a.pubkey == b.pubkey;
+    }
+
+    void Encode(unsigned char code[74]) const;
+    void Decode(const unsigned char code[74]);
+    bool Derive(CExtPubKey &out, unsigned int nChild) const;
+};
+
+struct CExtKey {
+    unsigned char nDepth;
+    unsigned char vchFingerprint[4];
+    unsigned int nChild;
+    unsigned char vchChainCode[32];
+    CKey key;
+
+    friend bool operator==(const CExtKey &a, const CExtKey &b) {
+        return a.nDepth == b.nDepth && memcmp(&a.vchFingerprint[0], &b.vchFingerprint[0], 4) == 0 && a.nChild == b.nChild &&
+               memcmp(&a.vchChainCode[0], &b.vchChainCode[0], 32) == 0 && a.key == b.key;
+    }
+
+    void Encode(unsigned char code[74]) const;
+    void Decode(const unsigned char code[74]);
+    bool Derive(CExtKey &out, unsigned int nChild) const;
+    CExtPubKey Neuter() const;
+    void SetMaster(const unsigned char *seed, unsigned int nSeedLen);
+};
+
+/** Check that required EC support is available at runtime */
+bool ECC_InitSanityCheck(void);
 
 #endif
